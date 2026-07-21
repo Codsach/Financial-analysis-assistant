@@ -99,7 +99,7 @@ function QueryConsoleContent() {
 
         {/* Right Column: Response Panel */}
         <div className="lg:col-span-6 flex flex-col gap-4">
-          <ResponsePanel data={data} isLoading={isLoading} error={error} />
+          <ResponsePanel data={data} isLoading={isLoading} error={error} analysisType={selectedType} />
         </div>
       </div>
     </div>

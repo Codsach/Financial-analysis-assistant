@@ -1,16 +1,31 @@
 "use client";
 
 import React, { useState } from "react";
-import { AnalysisResponse } from "@/types/api";
+import { AnalysisResponse, AnalysisType } from "@/types/api";
 import { Copy, Check, Database, Building2, Calendar, Clock, Sparkles, AlertCircle, FileText } from "lucide-react";
+
+import FinancialSummaryCard from "@/features/financial-summary/components/FinancialSummaryCard";
+import ProfitCard from "@/features/profit/components/ProfitCard";
+import LossCard from "@/features/loss/components/LossCard";
+import BranchAnalysisCard from "@/features/branch-analysis/components/BranchAnalysisCard";
+import RevenueCard from "@/features/revenue/components/RevenueCard";
+import ExpenseCard from "@/features/expense/components/ExpenseCard";
+import BalanceSheetCard from "@/features/balance-sheet/components/BalanceSheetCard";
+import CashFlowCard from "@/features/cash-flow/components/CashFlowCard";
+import HealthScoreCard from "@/features/health-score/components/HealthScoreCard";
+import TrendCard from "@/features/trend/components/TrendCard";
+import RiskCard from "@/features/risk/components/RiskCard";
+import ExecutiveReportCard from "@/features/report/components/ExecutiveReportCard";
+import RecommendationsCard from "@/features/recommendations/components/RecommendationsCard";
 
 interface ResponsePanelProps {
   data: AnalysisResponse | null;
   isLoading: boolean;
   error: string | null;
+  analysisType?: AnalysisType;
 }
 
-export default function ResponsePanel({ data, isLoading, error }: ResponsePanelProps) {
+export default function ResponsePanel({ data, isLoading, error, analysisType }: ResponsePanelProps) {
   const [copied, setCopied] = useState<boolean>(false);
 
   const handleCopy = async () => {
@@ -20,7 +35,6 @@ export default function ResponsePanel({ data, isLoading, error }: ResponsePanelP
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback copy if clipboard API fails
       const textarea = document.createElement("textarea");
       textarea.value = data.analysis;
       document.body.appendChild(textarea);
@@ -32,7 +46,43 @@ export default function ResponsePanel({ data, isLoading, error }: ResponsePanelP
     }
   };
 
-  // Format markdown-style bolding and headings simply
+  const renderFeatureCard = (response: AnalysisResponse, type?: AnalysisType) => {
+    let activeType = type;
+    if (!activeType) {
+      const text = response.analysis;
+      if (text.includes("Health Assessment") || text.includes("Health Score")) activeType = "health-score";
+      else if (text.includes("Risk Assessment") || text.includes("Risk Indicators")) activeType = "risk";
+      else if (text.includes("Branch Performance")) activeType = "branch-analysis";
+      else if (text.includes("Loss Driver")) activeType = "loss";
+      else if (text.includes("Profit Analysis")) activeType = "profit";
+      else if (text.includes("Strategic Recommendations")) activeType = "recommendations";
+      else if (text.includes("EXECUTIVE FINANCIAL REPORT")) activeType = "report";
+      else if (text.includes("Revenue Trend")) activeType = "revenue";
+      else if (text.includes("Operating Expense Composition") || text.includes("Expense Analysis")) activeType = "expense";
+      else if (text.includes("Balance Sheet")) activeType = "balance-sheet";
+      else if (text.includes("Cash Flow")) activeType = "cash-flow";
+      else if (text.includes("Trend Analysis") || text.includes("Trajectory")) activeType = "trend";
+      else activeType = "financial-summary";
+    }
+
+    switch (activeType) {
+      case "financial-summary": return <FinancialSummaryCard response={response} />;
+      case "profit": return <ProfitCard response={response} />;
+      case "loss": return <LossCard response={response} />;
+      case "branch-analysis": return <BranchAnalysisCard response={response} />;
+      case "revenue": return <RevenueCard response={response} />;
+      case "expense": return <ExpenseCard response={response} />;
+      case "balance-sheet": return <BalanceSheetCard response={response} />;
+      case "cash-flow": return <CashFlowCard response={response} />;
+      case "health-score": return <HealthScoreCard response={response} />;
+      case "trend": return <TrendCard response={response} />;
+      case "risk": return <RiskCard response={response} />;
+      case "report": return <ExecutiveReportCard response={response} />;
+      case "recommendations": return <RecommendationsCard response={response} />;
+      default: return <FinancialSummaryCard response={response} />;
+    }
+  };
+
   const renderFormattedText = (text: string) => {
     const lines = text.split("\n");
     return lines.map((line, idx) => {
@@ -239,7 +289,11 @@ export default function ResponsePanel({ data, isLoading, error }: ResponsePanelP
       </div>
 
       {/* Response content */}
-      <div className="p-6 overflow-y-auto max-h-[500px]">
+      <div className="p-6 overflow-y-auto max-h-[550px]">
+        {/* Render Feature-Specific Component Visualizer */}
+        {renderFeatureCard(data, analysisType)}
+
+        {/* Render AI Narrative Text */}
         {renderFormattedText(data.analysis)}
       </div>
 
