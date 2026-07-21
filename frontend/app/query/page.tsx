@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import QueryBox from "@/components/shared/QueryBox";
 import ResponsePanel from "@/components/shared/ResponsePanel";
@@ -18,6 +18,11 @@ function QueryConsoleContent() {
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
   const initialType: AnalysisType = isValidAnalysisType(typeParam) ? typeParam : "financial-summary";
+  const replayQuery = searchParams.get("query");
+  const replayBranch = searchParams.get("branch") ?? "Bangalore";
+  const replayPeriod = searchParams.get("period") ?? "2026-Q2";
+  const replayId = searchParams.get("replay");
+  const hasReplayed = useRef(false);
 
   const [selectedType, setSelectedType] = useState<AnalysisType>(initialType);
 
@@ -38,6 +43,20 @@ function QueryConsoleContent() {
       // Error state managed by useAnalysis hook state
     });
   };
+
+  useEffect(() => {
+    if (!replayId || !replayQuery || hasReplayed.current) return;
+
+    hasReplayed.current = true;
+    executeAnalysis({
+      type: initialType,
+      query: replayQuery,
+      branch: replayBranch === "All Branches" ? undefined : replayBranch,
+      period: replayPeriod,
+    }).catch(() => {
+      // Error state managed by useAnalysis hook state.
+    });
+  }, [executeAnalysis, initialType, replayBranch, replayId, replayPeriod, replayQuery]);
 
   const currentTypeInfo = ANALYSIS_TYPE_MAP[selectedType];
 
@@ -94,6 +113,9 @@ function QueryConsoleContent() {
             onTypeChange={setSelectedType}
             onSubmit={handleSubmitQuery}
             isLoading={isLoading}
+            initialQuery={replayQuery ?? ""}
+            initialBranch={replayBranch}
+            initialPeriod={replayPeriod}
           />
         </div>
 
@@ -108,8 +130,9 @@ function QueryConsoleContent() {
 
 function QueryConsoleWithKey() {
   const searchParams = useSearchParams();
-  const typeParam = searchParams.get("type");
-  return <QueryConsoleContent key={typeParam ?? "default"} />;
+  const replayKey = searchParams.get("replay");
+  const typeKey = searchParams.get("type");
+  return <QueryConsoleContent key={replayKey ?? typeKey ?? "default"} />;
 }
 
 export default function QueryConsolePage() {
@@ -125,5 +148,3 @@ export default function QueryConsolePage() {
     </Suspense>
   );
 }
-
-
