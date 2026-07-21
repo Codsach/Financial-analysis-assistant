@@ -1,0 +1,1136 @@
+================================================================================
+  FINANCIAL ANALYSIS ASSISTANT — DEVELOPMENT PHASES PLAN
+  For 2 Beginner Developers | Complete Build-to-Deployment Guide
+================================================================================
+
+This plan covers every step from your first line of code to a live deployment.
+The project is split into two parallel tracks so both developers can work
+simultaneously without blocking each other.
+
+  DEV A  = Backend + ML Model developer
+  DEV B  = Frontend developer
+
+After the Pre-Phase (a short setup done together), both devs split and work
+independently until the Integration Phases at the end.
+
+================================================================================
+  HOW TO READ THIS PLAN
+================================================================================
+
+  [BOTH]  = Both developers work on this together
+  [DEV A] = Backend/ML developer does this
+  [DEV B] = Frontend developer does this
+
+  Each phase has:
+  - What you will build
+  - Step-by-step tasks (in order)
+  - How to check it is working before moving on
+
+  TIP: Always finish the checklist items in order. Do not skip ahead.
+
+================================================================================
+  PRE-PHASE: PROJECT SETUP & SHARED CONTRACTS
+  Estimated time: 1 day | [BOTH]
+================================================================================
+
+  This is the ONLY phase where both developers must work together.
+  After this, you split into independent tracks.
+
+  GOAL:
+  Agree on what the API will look like so Dev B can build the frontend
+  against mock (fake) responses without waiting for Dev A to finish the
+  real backend.
+
+  STEPS:
+  -------
+
+  1. Set up your machine
+     - Install Python 3.11+
+     - Install Node.js v20+
+     - Install PostgreSQL 15+
+     - Install Git
+     - Install VS Code + extensions: Python, ESLint, Prettier
+
+  2. Clone the repository on both machines
+     - git clone <your-repo-url>
+     - cd prototype
+
+  3. Set up Python virtual environment (Dev A does, Dev B watches)
+     - python -m venv .venv
+     - .venv\Scripts\activate    (Windows)
+     - pip install -r backend/requirements.txt
+
+  4. Set up the frontend (Dev B does, Dev A watches)
+     - cd frontend
+     - npm install
+
+  5. Together, write the API contracts document
+     Create: docs/api-contracts.md
+     For each of the 13 analysis features, write down:
+       - The URL (e.g. POST /api/v1/profit)
+       - What JSON the frontend will SEND to the backend
+       - What JSON the backend will SEND BACK to the frontend
+
+     Example for Profit Analysis:
+       URL: POST /api/v1/profit
+       Send:   { "branch": "Bangalore", "period": "2026-Q2" }
+       Receive: { "analysis": "..text..", "sources": { "period": "2026-Q2" } }
+
+     Do this for all 13 endpoints:
+       /financial-summary, /profit, /loss, /branch-analysis,
+       /revenue, /expense, /balance-sheet, /cash-flow,
+       /health-score, /trend, /risk, /report, /recommendations
+
+  6. Together, create mock (fake) response JSON files
+     Create one file per feature in: docs/mock-responses/
+       docs/mock-responses/profit.json
+       docs/mock-responses/loss.json
+       ... (one per endpoint)
+
+     Each file contains a realistic fake response the frontend can use.
+
+  7. Set up the database locally (Dev A)
+     - Create a PostgreSQL database called "financial_db"
+     - Create a .env file in backend/ with:
+         POSTGRES_SERVER=localhost
+         POSTGRES_USER=postgres
+         POSTGRES_PASSWORD=your_password
+         POSTGRES_DB=financial_db
+         SECRET_KEY=any_random_string_here
+
+  CHECK: Both developers can run their respective dev servers:
+    Dev A: cd backend && uvicorn app.main:app --reload → opens at localhost:8000
+    Dev B: cd frontend && npm run dev → opens at localhost:3000
+
+================================================================================
+  PHASE A1: DATABASE FOUNDATION
+  Estimated time: 3-4 days | [DEV A]
+================================================================================
+
+  GOAL:
+  Create all the database tables the application needs and fill them with
+  sample (test) data.
+
+  WHAT YOU WILL LEARN:
+  - How SQLAlchemy ORM works
+  - How Alembic runs database migrations
+  - How to structure database models
+
+  STEPS:
+  -------
+
+  1. Create the database base file
+     File: backend/app/db/base.py
+     This file just creates the "Base" class that all models inherit from.
+
+  2. Create the async database session
+     File: backend/app/db/session.py
+     This creates the connection to PostgreSQL using asyncpg.
+     Use the DATABASE_URL from your .env file.
+
+  3. Create all ORM model files (one file per table):
+     backend/app/db/models/branch.py
+       - branch_id, branch_name, region
+
+     backend/app/db/models/financial_periods.py
+       - period_id, branch_id, period_type, start_date, end_date
+
+     backend/app/db/models/income_statement.py
+       - period_id, revenue, cogs, operating_expenses, net_profit
+
+     backend/app/db/models/balance_sheet.py
+       - period_id, total_assets, total_liabilities, total_equity,
+         current_assets, current_liabilities
+
+     backend/app/db/models/cash_flow.py
+       - period_id, operating_cf, investing_cf, financing_cf
+
+     backend/app/db/models/expense_breakdown.py
+       - period_id, category, amount
+
+     backend/app/db/models/audit_log.py
+       - log_id, user_id, query_text, retrieved_record_ids,
+         response_summary, timestamp
+
+  4. Set up Alembic (database migration tool)
+     - cd backend
+     - alembic init alembic
+     - Edit alembic/env.py to import your models
+     - alembic revision --autogenerate -m "initial tables"
+     - alembic upgrade head
+
+  5. Write a seed script to insert sample data
+     File: backend/app/db/seed.py
+     Add 2-3 branches, 4 quarters of financial data for each branch.
+     Run: python app/db/seed.py
+
+  CHECK: Open pgAdmin or a terminal and run:
+    SELECT * FROM branches;
+    SELECT * FROM income_statement;
+    Both should show data. If yes, Phase A1 is done.
+
+================================================================================
+  PHASE A2: FASTAPI SERVER WITH STUB ENDPOINTS
+  Estimated time: 3-4 days | [DEV A]
+================================================================================
+
+  GOAL:
+  Build the full FastAPI server with all 13 endpoints, but have them
+  return the MOCK (fake) responses from docs/mock-responses/ for now.
+  This lets Dev B connect the real frontend to real HTTP endpoints
+  immediately.
+
+  WHAT YOU WILL LEARN:
+  - How FastAPI works (routes, request models, response models)
+  - How JWT authentication works
+  - How to structure a large FastAPI project
+
+  STEPS:
+  -------
+
+  1. Set up configuration and security
+     backend/app/core/config.py    - Settings loaded from .env file
+     backend/app/core/security.py  - JWT token creation and validation
+     backend/app/core/logging.py   - Structured JSON logging setup
+     backend/app/core/exceptions.py - Global error handlers
+
+  2. Create Pydantic schemas for all features
+     (Pydantic validates that the right data is sent/received)
+     Create one schema.py per feature in backend/app/features/:
+       features/profit/schema.py
+       features/loss/schema.py
+       ... etc.
+
+     Each schema.py needs:
+       - ProfitRequest (what the frontend sends)
+       - ProfitResponse (what the backend returns)
+
+  3. Create all endpoint files (they return mock data for now)
+     backend/app/api/v1/endpoints/profit.py:
+
+       @router.post("/profit", response_model=ProfitResponse)
+       async def profit_analysis(request: ProfitRequest):
+           # TODO: replace with real logic in Phase A4
+           return load_mock("profit.json")
+
+     Do this for all 13 endpoints.
+
+  4. Register all routers
+     backend/app/api/v1/router.py  - imports all 13 endpoint files
+     backend/app/main.py           - registers the v1 router
+
+  5. Add auth endpoints
+     POST /auth/login    - accepts username/password, returns JWT token
+     GET  /auth/me       - returns current user info
+
+  CHECK: Start the server and test in Postman or browser:
+    GET  http://localhost:8000/health          → {"status":"ok"}
+    POST http://localhost:8000/auth/login      → returns a token
+    POST http://localhost:8000/api/v1/profit   → returns mock JSON
+    If all work, Phase A2 is done.
+
+  NOTE FOR DEV B: Now Dev B can point the frontend at localhost:8000
+  and get real HTTP responses without any real business logic yet.
+
+================================================================================
+  PHASE A3: INTENT DETECTION
+  Estimated time: 2-3 days | [DEV A]
+================================================================================
+
+  GOAL:
+  Build the module that reads the user's natural language question and
+  decides which of the 13 analysis types they want, plus extracts
+  details like branch name and date range.
+
+  WHAT YOU WILL LEARN:
+  - Basic text classification (rule-based, no ML required yet)
+  - How to extract entities from text (branch names, dates)
+
+  STEPS:
+  -------
+
+  1. Build the intent detector
+     File: backend/app/intent/detector.py
+
+     Start with simple keyword matching:
+       - If "profit" or "earning" in query → intent = "profit_analysis"
+       - If "loss" or "losing" in query → intent = "loss_analysis"
+       - If "balance sheet" or "assets" in query → intent = "balance_sheet"
+       - If "cash flow" in query → intent = "cash_flow"
+       ... and so on for all 13 types
+
+     The function signature should be:
+       def detect_intent(query: str) -> tuple[str, dict]
+       Returns: ("profit_analysis", {"branch": "Bangalore", "period": "Q2"})
+
+  2. Build the entity extractor
+     File: backend/app/intent/entities.py
+
+     Extract:
+       - Branch name: look for known branch names in the text
+         (Bangalore, Mysore, etc. from your seed data)
+       - Date range: look for patterns like "Q1 2026", "January 2026",
+         "last quarter", "this year"
+
+  3. Write tests for both files
+     File: backend/tests/intent/test_detector.py
+     Test at least 10 different sample queries.
+
+  CHECK: Run tests:
+    pytest tests/intent/ -v
+    All tests should pass. No server needed.
+
+================================================================================
+  PHASE A5: ML MODEL — TOKENIZER & TRANSFORMER
+  Estimated time: 5-7 days | [DEV A]
+  (Run this in parallel with A1, A2, A3 — they are independent)
+================================================================================
+
+  GOAL:
+  Build the custom AI model from scratch. This runs independently of the
+  backend — it is purely Python + PyTorch.
+
+  WHAT YOU WILL LEARN:
+  - How SentencePiece tokenization works
+  - How a Transformer neural network is structured
+  - How to train a language model
+
+  STEPS:
+  -------
+
+  STEP 5A: Build the tokenizer
+  1. Collect a small sample of financial text (public sources):
+     - Financial news articles (plain text)
+     - Public earnings report summaries
+     - Accounting/finance Wikipedia pages
+     Save all text to: model/tokenizer/corpus.txt
+
+  2. Train the SentencePiece tokenizer
+     File: model/tokenizer/train_tokenizer.py
+       import sentencepiece as spm
+       spm.SentencePieceTrainer.train(
+           input='tokenizer/corpus.txt',
+           model_prefix='tokenizer/financial',
+           vocab_size=16000,
+           model_type='bpe'
+       )
+     Run: python model/tokenizer/train_tokenizer.py
+     Output: model/tokenizer/financial.model
+
+  3. Test the tokenizer
+     Load financial.model and tokenize sample sentences.
+     Check that financial words like "revenue", "EBITDA", "amortization"
+     get reasonable tokenizations.
+
+  STEP 5B: Build the Transformer architecture
+  4. Define model configuration
+     File: model/architecture/config.py (already created)
+     Keep it simple to start:
+       - n_layer = 6
+       - n_head = 6
+       - n_embd = 384
+       - context_window = 512
+       - vocab_size = 16000
+
+  5. Build the transformer blocks
+     File: model/architecture/transformer.py
+     Build these classes in order:
+       a. CausalSelfAttention - the attention mechanism
+       b. MLP - the feed-forward layer
+       c. Block - one transformer layer (attention + MLP)
+       d. FinancialLM - the full model (embedding + N blocks + output head)
+
+     TIP: Follow a simple GPT-style tutorial online and adapt it.
+     The key property: it is decoder-only (causal masking).
+
+  6. Test the forward pass
+     Run in Python:
+       from architecture.transformer import FinancialLM
+       from architecture.config import FinancialModelConfig
+       import torch
+       cfg = FinancialModelConfig()
+       model = FinancialLM(cfg)
+       x = torch.randint(0, 16000, (1, 128))  # fake token input
+       out = model(x)
+       print(out.shape)  # should print: torch.Size([1, 128, 16000])
+     If this works, the architecture is correct.
+
+  STEP 5C: Training (run on GPU if available, CPU is slow but works)
+  7. Build the dataset loader
+     File: model/training/dataset.py
+     Loads text from your corpus, tokenizes it, returns sliding windows
+     of 512 tokens as training examples.
+
+  8. Write the training loop
+     File: model/training/train.py
+     - Load dataset
+     - Create model
+     - AdamW optimizer, cosine learning rate schedule
+     - Train for next-token prediction (CrossEntropyLoss)
+     - Save checkpoint every 1000 steps to model/training/checkpoints/
+
+  9. Evaluate the model
+     File: model/eval/evaluate.py
+     Calculate perplexity on a small held-out set.
+     Generate a few sample completions to check quality.
+
+  STEP 5D: Export for CPU inference
+  10. Quantize the model to INT8
+      File: model/export/quantize.py
+      Use PyTorch's built-in quantization:
+        torch.quantization.quantize_dynamic(model, ...)
+      Check that the quantized model is under 1GB.
+
+  11. Export to ONNX format
+      File: model/export/export_onnx.py
+      torch.onnx.export(model, ...)
+      Test that ONNX Runtime can load and run it on CPU.
+
+  CHECK:
+    - Tokenizer: python train_tokenizer.py → financial.model file created
+    - Architecture: forward pass test above passes without errors
+    - Training: loss decreases over time (watch the printed loss values)
+    - Export: onnxruntime can load and run the exported model
+
+================================================================================
+  PHASE A4: FEATURE SERVICES & REAL BUSINESS LOGIC
+  Estimated time: 5-7 days | [DEV A]
+  (After A1, A2, A3 are complete)
+================================================================================
+
+  GOAL:
+  Replace the mock responses in Phase A2 with real logic: query the
+  database, build context text, and (for now) return formatted text.
+  The LLM will be wired in during Phase A6.
+
+  STEPS:
+  -------
+
+  Build these features in priority order. Each one follows the same pattern:
+
+  PATTERN for each feature:
+    backend/app/features/<name>/repository.py
+      - Contains the SQL/ORM queries that fetch data from the database
+      - Example: get_profit_data(branch_id, period_id) -> dict
+
+    backend/app/features/<name>/service.py
+      - Calls the repository to get data
+      - Calls the context builder to format it as text
+      - Calls the inference service to generate the analysis
+      - Returns the final response
+
+    backend/app/features/<name>/schema.py
+      - Already done in Phase A2
+
+  BUILD ORDER:
+    1. Financial Summary  (features/summary/)
+    2. Profit Analysis    (features/profit/)
+    3. Loss Analysis      (features/loss/)
+    4. Branch Analysis    (features/branch_analysis/)
+    5. Revenue Analysis   (features/revenue/)
+    6. Expense Analysis   (features/expense/)
+    7. Balance Sheet      (features/balance_sheet/)
+    8. Cash Flow          (features/cash_flow/)
+    9. Health Score       (features/health_score/)
+   10. Trend Analysis     (features/trend/)
+   11. Risk Analysis      (features/risk/)
+   12. Executive Report   (features/report/)
+   13. Recommendations    (features/recommendations/)
+
+  ALSO BUILD:
+    backend/app/context_builder/builder.py
+      - Takes raw database rows (dictionaries)
+      - Formats them into readable text for the model
+      Example output:
+        "Branch: Bangalore | Period: Q2 2026
+         Revenue: 4200000 | Expenses: 3900000 | Net Profit: 300000"
+
+    backend/app/context_builder/templates.py
+      - Text templates for each analysis type
+      - Keeps formatting consistent
+
+  CHECK per feature: pytest tests/features/<name>/ -v
+  The tests should query the seeded database and verify real data comes back.
+
+================================================================================
+  PHASE A6: WIRE IN THE LLM
+  Estimated time: 2-3 days | [DEV A]
+  (After A4 and A5 are both complete)
+================================================================================
+
+  GOAL:
+  Connect the trained and exported ONNX model to the FastAPI backend
+  so the API returns real AI-generated text instead of mock responses.
+
+  STEPS:
+  -------
+
+  1. Build the inference client
+     File: backend/app/inference/client.py
+       - Load the ONNX model once at server startup (not on every request)
+       - Provide a generate(prompt: str, max_tokens: int) -> str function
+       - Run on CPU using ONNX Runtime
+
+  2. Build the prompt formatter
+     File: backend/app/inference/prompt_formatter.py
+       - Takes: context text (from context builder) + user query
+       - Returns: a single formatted string for the model
+       Example format:
+         "Financial Data:
+          Branch: Bangalore | Revenue: 4200000 | ...
+          Question: Why is this branch making a loss?
+          Analysis:"
+
+  3. Update every feature's service.py
+     Replace: return load_mock("profit.json")
+     With:
+       context = context_builder.build(data)
+       prompt = prompt_formatter.format(context, request.query)
+       analysis = inference_client.generate(prompt)
+       return ProfitResponse(analysis=analysis, sources=sources)
+
+  CHECK:
+    curl -X POST http://localhost:8000/api/v1/profit \
+      -H "Authorization: Bearer <your_token>" \
+      -d '{"branch": "Bangalore", "period": "2026-Q2"}'
+    Response should contain real AI-generated text.
+
+================================================================================
+  PHASE B1: DESIGN SYSTEM & LAYOUT SHELL
+  Estimated time: 2-3 days | [DEV B]
+================================================================================
+
+  GOAL:
+  Build the visual foundation: colors, fonts, spacing, and the main
+  page shell (sidebar + top navigation). No API calls needed yet.
+
+  WHAT YOU WILL LEARN:
+  - How Next.js App Router layouts work
+  - How Tailwind CSS utility classes work
+  - How to build a dashboard layout
+
+  STEPS:
+  -------
+
+  1. Define the design tokens in Tailwind config
+     File: frontend/tailwind.config.ts
+     Define custom colors:
+       primary:   deep blue-indigo (#3730a3)
+       accent:    violet (#7c3aed)
+       success:   emerald (#10b981)
+       danger:    red (#ef4444)
+       bg:        near-black (#0f0f1a)
+       surface:   dark card (#1a1a2e)
+     Define custom fonts: Inter (from Google Fonts)
+
+  2. Set up global styles
+     File: frontend/styles/globals.css
+     - Import Inter font from Google Fonts
+     - Set dark background on body
+     - Define CSS custom properties for your design tokens
+     - Basic reset styles
+
+  3. Create the root layout
+     File: frontend/app/layout.tsx
+     - Imports global styles and fonts
+     - Renders the Sidebar and main content area side by side
+
+  4. Build the Sidebar component
+     File: frontend/components/shared/Sidebar.tsx
+     - Logo at the top
+     - Navigation links to: Dashboard, Query Console, History
+     - Visual indicator for active route
+
+  5. Build the Top Navigation bar
+     File: frontend/components/shared/TopNav.tsx
+     - Page title on the left
+     - User avatar / logout button on the right
+
+  6. Build the Dashboard home page
+     File: frontend/app/page.tsx
+     - Shows a grid of cards, one for each of the 13 analysis types
+     - Each card has: icon, title, short description
+     - Clicking a card goes to the Query Console with that type pre-selected
+
+  CHECK: npm run dev → open localhost:3000
+  You should see a dark-themed dashboard with sidebar and 13 analysis cards.
+  No API needed. If it looks good, Phase B1 is done.
+
+================================================================================
+  PHASE B2: API CLIENT & MOCK LAYER
+  Estimated time: 1-2 days | [DEV B]
+================================================================================
+
+  GOAL:
+  Build the HTTP client that talks to the backend, plus a mock version
+  that returns fake data from JSON files — so the rest of the frontend
+  can be built without a running backend.
+
+  STEPS:
+  -------
+
+  1. Create shared TypeScript types
+     File: frontend/types/api.ts
+     Copy the request/response shapes from docs/api-contracts.md
+     and write them as TypeScript interfaces.
+
+     File: frontend/types/domain.ts
+     Write types for: Branch, Period, AnalysisResult
+
+  2. Create the real API client
+     File: frontend/lib/api-client.ts
+     - A fetch() wrapper that adds the auth token header automatically
+     - Handles errors (401 redirect to login, 500 shows error message)
+     - Base URL comes from NEXT_PUBLIC_API_URL env variable
+
+  3. Create the mock client
+     File: frontend/lib/mock-client.ts
+     - Same function signatures as api-client.ts
+     - Returns data from the JSON fixture files in docs/mock-responses/
+     - Has a fake 800ms delay to simulate real network
+
+  4. Create a switcher
+     File: frontend/lib/client.ts
+     - If NEXT_PUBLIC_USE_MOCK=true → export mock-client
+     - If NEXT_PUBLIC_USE_MOCK=false → export api-client
+
+  5. Add a .env.local file
+     frontend/.env.local:
+       NEXT_PUBLIC_API_URL=http://localhost:8000
+       NEXT_PUBLIC_USE_MOCK=true
+
+  CHECK: In any component, import from lib/client.ts and call an analysis
+  function. It should return data from the mock file without any backend.
+
+================================================================================
+  PHASE B3: QUERY CONSOLE SCREEN
+  Estimated time: 3-4 days | [DEV B]
+================================================================================
+
+  GOAL:
+  The main screen where users type a financial question and see the
+  AI's analysis. This is the core feature of the entire app.
+
+  STEPS:
+  -------
+
+  1. Build the Query Input Box
+     File: frontend/components/shared/QueryBox.tsx
+     - Large text area for the question
+     - "Example queries" suggestions below it (clickable to auto-fill)
+     - Submit button with loading state (spinning indicator while waiting)
+     - Analysis type dropdown (which of the 13 types?)
+
+  2. Build the Response Panel
+     File: frontend/components/shared/ResponsePanel.tsx
+     - Shows the AI-generated analysis text
+     - Shows a "Sources" section: which branch, which period, which record IDs
+     - Shows a timestamp
+     - "Copy" button to copy the response text
+     - Skeleton loading state while request is in flight
+
+  3. Build the generic analysis hook
+     File: frontend/features/shared/hooks/useAnalysis.ts
+     - Takes: analysisType, request data
+     - Calls the API client (or mock)
+     - Returns: { data, isLoading, error }
+     - Stores each result in query history
+
+  4. Build the Query Console page
+     File: frontend/app/(dashboard)/query/page.tsx
+     - Puts QueryBox and ResponsePanel together
+     - Handles form submission
+     - Shows loading spinner in ResponsePanel while waiting
+
+  CHECK: npm run dev with NEXT_PUBLIC_USE_MOCK=true
+  Type a question, click submit, see mock response appear. Loading state
+  should show then disappear. If this works, Phase B3 is done.
+
+================================================================================
+  PHASE B4: FEATURE-SPECIFIC PAGES & COMPONENTS
+  Estimated time: 4-5 days | [DEV B]
+================================================================================
+
+  GOAL:
+  Build a dedicated page/component for each of the 13 analysis types
+  so each has its own styled display and input fields.
+
+  PATTERN (repeat for each feature):
+    frontend/features/<name>/
+      components/<Name>Card.tsx   — styled display for this analysis type
+      hooks/use<Name>.ts          — API hook specific to this feature
+      types.ts                    — TypeScript types for this feature
+
+  BUILD ORDER (match Dev A's priority):
+    1. Financial Summary
+    2. Profit Analysis
+    3. Loss Analysis
+    4. Branch Analysis (has branch selector dropdown)
+    5. Revenue Analysis
+    6. Expense Analysis
+    7. Balance Sheet Analysis
+    8. Cash Flow Analysis
+    9. Health Score (has a visual 0-100 score indicator)
+   10. Trend Analysis
+   11. Risk Analysis (highlights risk flags in red)
+   12. Executive Report (formatted long-form text)
+   13. Recommendations (shows action items as a list)
+
+  CHECK per feature: Mock data renders correctly in the component.
+  Final check: npm run build — must succeed with zero TypeScript errors.
+
+================================================================================
+  PHASE B5: HISTORY PANEL
+  Estimated time: 1-2 days | [DEV B]
+================================================================================
+
+  GOAL:
+  A sidebar or page that shows the user's past queries and responses
+  for their current session. Works fully client-side (no backend needed).
+
+  STEPS:
+  -------
+
+  1. Build history storage
+     File: frontend/features/history/hooks/useHistory.ts
+     - Stores queries in browser sessionStorage
+     - On new query: prepend to history list
+     - On page reload: restores from sessionStorage
+
+  2. Build the History Panel component
+     File: frontend/features/history/components/HistoryPanel.tsx
+     - Scrollable list of past queries
+     - Each item shows: query text, analysis type, time ago
+     - Click an item to re-run that query
+
+  3. Build the History page
+     File: frontend/app/(dashboard)/history/page.tsx
+
+  CHECK: Run a few queries, then go to History page.
+  All past queries should be listed. Click one to re-run it.
+
+================================================================================
+  PHASE B6: AUTH UI — LOGIN & ROUTE PROTECTION
+  Estimated time: 2-3 days | [DEV B]
+================================================================================
+
+  GOAL:
+  A login screen and JWT token management so only logged-in users
+  can access the dashboard.
+
+  STEPS:
+  -------
+
+  1. Build auth helpers
+     File: frontend/lib/auth.ts
+     - saveToken(token: string)   — stores JWT in localStorage
+     - getToken()                 — retrieves JWT
+     - clearToken()               — removes JWT (logout)
+     - isAuthenticated()          — true if token exists and not expired
+
+  2. Build the Login page
+     File: frontend/app/login/page.tsx
+     - Username and password fields
+     - Submit calls POST /auth/login on the backend (or mock)
+     - On success: save token, redirect to dashboard
+     - On failure: show error message
+
+  3. Build route protection
+     File: frontend/components/shared/AuthGuard.tsx
+     - Wraps the dashboard layout
+     - If not authenticated: redirect to /login
+     - If authenticated: render children
+
+  4. Update the root layout to use AuthGuard
+
+  CHECK: Clear localStorage, visit localhost:3000/query
+  Should redirect to /login. Log in → should redirect back to dashboard.
+  Refresh page → should stay on dashboard (token persists).
+
+================================================================================
+  PHASE I1: BACKEND ↔ FRONTEND INTEGRATION
+  Estimated time: 2-3 days | [BOTH]
+================================================================================
+
+  GOAL:
+  Connect the real FastAPI backend to the Next.js frontend.
+  Do this one feature at a time.
+
+  STEPS:
+  -------
+
+  1. Make sure Dev A's backend is running: uvicorn app.main:app --reload
+
+  2. In Dev B's frontend, change .env.local:
+     NEXT_PUBLIC_USE_MOCK=false
+     NEXT_PUBLIC_API_URL=http://localhost:8000
+
+  3. For each of the 13 features, test together:
+     - Type a question in the Query Console
+     - Verify the right data comes back
+     - Check that error messages show correctly if backend fails
+     - Verify the auth token is sent in every request
+
+  4. Fix any mismatches between the API contract and actual code:
+     - Wrong field names
+     - Wrong data types
+     - Missing fields
+
+  5. Test the login flow end-to-end:
+     POST /auth/login → get token → use token on /api/v1/profit
+
+  CHECK: All 13 features work with real data from the real database.
+  No mock data anywhere. Auth is enforced.
+
+================================================================================
+  PHASE I2: FULL END-TO-END WITH REAL LLM
+  Estimated time: 1-2 days | [BOTH]
+================================================================================
+
+  GOAL:
+  Test that the real AI model (from Phase A5/A6) generates good
+  analysis text for all 13 features.
+
+  STEPS:
+  -------
+
+  1. For each feature, submit 3-5 realistic queries and review:
+     - Does the response make sense given the data?
+     - Are the financial numbers in the response accurate
+       (matching what's in the database)?
+     - Is the response readable and clear?
+
+  2. Measure response time for each feature:
+     - Should be 2-5 seconds
+     - If longer, note it for Phase I3 optimization
+
+  3. Test the audit log:
+     - After each query, check the audit_log table in the database
+     - Confirm: user_id, query_text, record IDs, timestamp are all saved
+
+  4. Test error states:
+     - Stop the database → backend should return a graceful error message
+     - Send a very long query → should not crash
+
+  CHECK: All 13 features return real AI-generated analysis.
+  Audit log is populated. No crashes on error conditions.
+
+================================================================================
+  PHASE I3: PERFORMANCE TESTING
+  Estimated time: 2-3 days | [BOTH]
+================================================================================
+
+  GOAL:
+  Verify the system can handle 40 users at the same time.
+
+  STEPS:
+  -------
+
+  1. Install Locust (load testing tool):
+     pip install locust
+
+  2. Write a Locust test file: tests/load/locustfile.py
+     - Simulates a user logging in and sending one analysis query
+     - Test with: 40 users, ramp up over 60 seconds
+
+  3. Run the load test:
+     locust -f tests/load/locustfile.py --host=http://localhost:8000
+
+  4. Look at the results:
+     - Average response time should be under 5 seconds
+     - No requests should fail (0% failure rate target)
+
+  5. If response time is too high, optimize:
+     - Use INT4 quantization instead of INT8 (smaller, faster model)
+     - Increase Gunicorn workers: gunicorn -w 4 app.main:app
+     - Cache frequent DB queries using a dict in memory
+
+  6. Security checks:
+     - Verify a logged-in user cannot see another branch's data
+       (test by creating 2 users with different branch access)
+     - Check that all endpoints reject requests without a valid token
+     - Make sure no stack traces appear in error responses
+
+  CHECK: Load test shows P95 response time under 5 seconds at 40 users.
+  Security tests all pass.
+
+================================================================================
+  PHASE D1: PREPARE FOR DEPLOYMENT
+  Estimated time: 2-3 days | [BOTH]
+================================================================================
+
+  GOAL:
+  Package the application so it runs cleanly outside your local machine.
+
+  STEPS:
+  -------
+
+  1. Create Docker files
+
+     File: backend/Dockerfile
+       FROM python:3.12-slim
+       WORKDIR /app
+       COPY requirements.txt .
+       RUN pip install --no-cache-dir -r requirements.txt
+       COPY . .
+       CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker",
+            "-b", "0.0.0.0:8000", "app.main:app"]
+
+     File: frontend/Dockerfile
+       FROM node:20-alpine AS builder
+       WORKDIR /app
+       COPY package*.json ./
+       RUN npm ci
+       COPY . .
+       RUN npm run build
+
+       FROM node:20-alpine AS runner
+       WORKDIR /app
+       COPY --from=builder /app/.next/standalone ./
+       COPY --from=builder /app/.next/static ./.next/static
+       CMD ["node", "server.js"]
+
+  2. Create docker-compose.yml (for running everything together locally)
+     File: docker-compose.yml (in project root)
+     Services:
+       - db (PostgreSQL)
+       - backend (FastAPI on port 8000)
+       - frontend (Next.js on port 3000)
+
+     Test: docker compose up → everything starts correctly
+
+  3. Create production environment variable files
+     backend/.env.production
+       POSTGRES_SERVER=<your-server-ip>
+       POSTGRES_USER=<prod-user>
+       POSTGRES_PASSWORD=<strong-password>
+       SECRET_KEY=<256-bit-random-key>
+
+     frontend/.env.production
+       NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+       NEXT_PUBLIC_USE_MOCK=false
+
+  4. Run the full build one more time:
+     docker compose build
+     docker compose up
+     Test everything works inside Docker.
+
+  CHECK: docker compose up → visit localhost:3000 → log in → all 13
+  features work. Backend is accessible at localhost:8000.
+
+================================================================================
+  PHASE D2: SERVER DEPLOYMENT
+  Estimated time: 2-3 days | [BOTH]
+================================================================================
+
+  GOAL:
+  Deploy to a real server (Ubuntu). The PRD calls for an Ubuntu server
+  with Nginx as a reverse proxy.
+
+  STEPS:
+  -------
+
+  STEP 1: Get a server
+  - Rent a cloud server (AWS EC2, DigitalOcean Droplet, or Hetzner)
+  - Choose Ubuntu 22.04
+  - Choose at least 8 cores and 16GB RAM (per PRD Section 18)
+  - Get the server's IP address
+
+  STEP 2: Set up the server
+  SSH into the server: ssh ubuntu@<server-ip>
+
+  Run these commands:
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y docker.io docker-compose nginx certbot python3-certbot-nginx git
+    sudo usermod -aG docker $USER
+    newgrp docker
+
+  STEP 3: Copy your code to the server
+  Option A (recommended for learning): use Git
+    git clone <your-repo-url> /home/ubuntu/prototype
+    cd /home/ubuntu/prototype
+
+  Option B: use scp to copy files
+
+  STEP 4: Set up environment variables on the server
+    Create /home/ubuntu/prototype/backend/.env with production values.
+    Create /home/ubuntu/prototype/frontend/.env.production
+
+  STEP 5: Build and start the application
+    cd /home/ubuntu/prototype
+    docker compose -f docker-compose.yml up -d --build
+
+    Check it is running: docker compose ps
+    Check logs if something fails: docker compose logs backend
+
+  STEP 6: Configure Nginx as a reverse proxy
+  Create: /etc/nginx/sites-available/financial-assistant
+
+    server {
+        listen 80;
+        server_name yourdomain.com;
+
+        # Route /api/* to FastAPI backend
+        location /api/ {
+            proxy_pass http://localhost:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        # Route everything else to Next.js frontend
+        location / {
+            proxy_pass http://localhost:3000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+
+  Enable it:
+    sudo ln -s /etc/nginx/sites-available/financial-assistant \
+               /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+
+  STEP 7: Enable HTTPS (free SSL certificate)
+    sudo certbot --nginx -d yourdomain.com
+    Follow the prompts. It auto-configures Nginx for HTTPS.
+    Test: https://yourdomain.com → should load the app.
+
+  STEP 8: Make the app restart automatically if the server reboots
+    Create: /etc/systemd/system/financial-assistant.service
+
+      [Unit]
+      Description=Financial Analysis Assistant
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      WorkingDirectory=/home/ubuntu/prototype
+      ExecStart=/usr/bin/docker compose up
+      ExecStop=/usr/bin/docker compose down
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+
+    sudo systemctl enable financial-assistant
+    sudo systemctl start financial-assistant
+
+  CHECK: Reboot the server (sudo reboot), wait 2 minutes, visit
+  https://yourdomain.com → app should load automatically.
+
+================================================================================
+  PHASE D3: FINAL ACCEPTANCE TESTING
+  Estimated time: 1 day | [BOTH]
+================================================================================
+
+  GOAL:
+  Verify every requirement from the PRD is met before sign-off.
+
+  ACCEPTANCE CHECKLIST (from PRD Section 23):
+  -----------------------------------------------
+
+  [ ] The model runs entirely on CPU (no GPU on the server)
+      How to verify: check nvidia-smi on the server → no GPU shown,
+      yet the app still works.
+
+  [ ] Model artifact is under 1GB after quantization
+      How to verify: ls -lh model/export/*.onnx
+
+  [ ] Company financial data is NEVER used for training
+      How to verify: review the training corpus — only public text.
+
+  [ ] All 13 analysis features work and return text responses
+      How to verify: manually test each one on the live deployment.
+      [ ] Financial Summary      [ ] Profit Analysis
+      [ ] Loss Analysis          [ ] Branch Analysis
+      [ ] Revenue Analysis       [ ] Expense Analysis
+      [ ] Balance Sheet          [ ] Cash Flow
+      [ ] Health Score           [ ] Trend Analysis
+      [ ] Risk Analysis          [ ] Executive Report
+      [ ] Recommendations
+
+  [ ] Average response time is 2-5 seconds (test with 40 users)
+      How to verify: run Locust against the production URL.
+
+  [ ] Every response can be traced to database records via audit log
+      How to verify: check audit_log table after each query.
+
+  [ ] Authentication enforced on all endpoints
+      How to verify: curl any /api/v1/ endpoint without a token →
+      should return 401 Unauthorized.
+
+  [ ] Frontend is responsive on desktop and tablet
+      How to verify: open Chrome DevTools → toggle device toolbar →
+      test at 768px width (iPad) and 1280px (desktop).
+
+  If all boxes are checked: DEPLOYMENT IS COMPLETE.
+
+================================================================================
+  COMPLETE PHASE TIMELINE OVERVIEW
+================================================================================
+
+  WEEK 1:
+    Both  → Pre-Phase (contracts, mocks, DB setup)
+    Dev A → A1 Database + A3 Intent Detection (parallel)
+    Dev B → B1 Design System + B2 API Client (parallel)
+    Dev A → A5 Tokenizer + A5 Transformer architecture (parallel)
+
+  WEEK 2:
+    Dev A → A2 FastAPI Stub Server
+    Dev B → B3 Query Console Screen
+    Dev A → A5 Training (runs overnight/background)
+
+  WEEK 3:
+    Dev A → A4 Feature Services (business logic, all 13)
+    Dev B → B4 Feature Pages (all 13)
+    Dev B → B5 History Panel + B6 Auth UI
+
+  WEEK 4:
+    Dev A → A5 Export model to ONNX + A6 Wire LLM into API
+    Both  → I1 API Integration (connect frontend to backend)
+
+  WEEK 5:
+    Both  → I2 End-to-end testing with real LLM
+    Both  → I3 Load testing + security checks
+
+  WEEK 6:
+    Both  → D1 Docker packaging
+    Both  → D2 Server deployment
+    Both  → D3 Final acceptance testing + sign-off
+
+================================================================================
+  QUICK REFERENCE: HOW TO RUN EACH PART LOCALLY
+================================================================================
+
+  Start the database:
+    (PostgreSQL should already be running as a service after install)
+
+  Start the backend:
+    cd C:\MyProjects\prototype
+    .venv\Scripts\activate
+    cd backend
+    uvicorn app.main:app --reload
+    → Runs at http://localhost:8000
+
+  Start the frontend (with mocks):
+    cd C:\MyProjects\prototype\frontend
+    npm run dev
+    → Runs at http://localhost:3000
+
+  Start the frontend (against real backend):
+    Set NEXT_PUBLIC_USE_MOCK=false in frontend/.env.local
+    npm run dev
+
+  Run backend tests:
+    cd C:\MyProjects\prototype
+    .venv\Scripts\activate
+    pytest backend/tests/ -v
+
+  Run a database migration:
+    cd C:\MyProjects\prototype\backend
+    alembic upgrade head
+
+================================================================================
+  END OF DEVELOPMENT PLAN
+================================================================================
