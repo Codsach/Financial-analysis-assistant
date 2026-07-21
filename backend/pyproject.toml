@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "financial-assistant-backend"
+version = "0.1.0"
+description = "FastAPI backend for Financial Analysis Assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "pydantic-settings",
+    "sqlalchemy",
+    "asyncpg",
+    "alembic",
+    "python-jose",
+    "passlib",
+    "python-multipart",
+    "python-dotenv",
+    "httpx"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
