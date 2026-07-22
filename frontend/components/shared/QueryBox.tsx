@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { AnalysisType } from "@/types/api";
 import { ANALYSIS_TYPE_MAP } from "@/types/domain";
 import { Send, Loader2, Sparkles, HelpCircle, ChevronDown, Building2, Calendar } from "lucide-react";
@@ -10,6 +10,9 @@ interface QueryBoxProps {
   onTypeChange: (type: AnalysisType) => void;
   onSubmit: (params: { query: string; type: AnalysisType; branch?: string; period?: string }) => void;
   isLoading: boolean;
+  initialQuery?: string;
+  initialBranch?: string;
+  initialPeriod?: string;
 }
 
 const BRANCH_OPTIONS = ["All Branches", "Bangalore", "Mysore", "Chennai", "Mumbai"];
@@ -20,10 +23,13 @@ export default function QueryBox({
   onTypeChange,
   onSubmit,
   isLoading,
+  initialQuery = "",
+  initialBranch = "Bangalore",
+  initialPeriod = "2026-Q2",
 }: QueryBoxProps) {
-  const [query, setQuery] = useState<string>("");
-  const [branch, setBranch] = useState<string>("Bangalore");
-  const [period, setPeriod] = useState<string>("2026-Q2");
+  const [query, setQuery] = useState<string>(initialQuery);
+  const [branch, setBranch] = useState<string>(initialBranch);
+  const [period, setPeriod] = useState<string>(initialPeriod);
   const [showParams, setShowParams] = useState<boolean>(false);
 
   const typeInfo = ANALYSIS_TYPE_MAP[selectedType] || ANALYSIS_TYPE_MAP["financial-summary"];
