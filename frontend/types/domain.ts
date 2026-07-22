@@ -17,6 +17,8 @@ export interface HistoryItem {
   id: string;
   type: AnalysisType;
   query: string;
+  branch?: string;
+  period?: string;
   response: AnalysisResponse;
   createdAt: string;
 }

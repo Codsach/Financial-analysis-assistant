@@ -52,7 +52,7 @@ export default function Sidebar() {
     <aside
       className="flex flex-col shrink-0 h-full"
       style={{
-        width: "256px",
+        width: "280px",
         backgroundColor: "#1a1a2e",
         borderRight: "1px solid #2d2d4e",
       }}
@@ -89,10 +89,10 @@ export default function Sidebar() {
       </div>
 
       {/* ── Navigation ── */}
-      <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+      <nav className="flex-1 px-4 py-5 flex flex-col gap-2">
         {/* Section label */}
         <p
-          className="uppercase tracking-widest font-semibold px-3 mb-2"
+          className="uppercase tracking-widest font-semibold px-3 mb-3"
           style={{ fontSize: "10px", color: "#6b7280" }}
         >
           Main Menu
