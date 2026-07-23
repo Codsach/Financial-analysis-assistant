@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
 )
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     postgres_db: str = "financial_db"
     secret_key: str = "any_random_string_here"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "allow"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="allow",
+    )
     
     @property
     def database_url(self) -> str:
